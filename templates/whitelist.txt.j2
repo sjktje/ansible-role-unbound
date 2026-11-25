@@ -1,0 +1,4 @@
+{{ ansible_managed | comment }}
+{% for url in unbound_whitelist %}
+{{ url }}
+{% endfor %}

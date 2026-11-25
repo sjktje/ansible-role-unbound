@@ -1,0 +1,158 @@
+---
+- name: Set OS dependent variables
+  ansible.builtin.include_vars: "{{ item }}"
+  with_first_found:
+    - files:
+      - "{{ ansible_distribution }}.yml"
+      - "{{ ansible_os_family }}.yml"
+      skip: true
+
+- name: install unbound
+  ansible.builtin.package:
+    name: unbound
+    state: present
+  when: ansible_distribution != 'OpenBSD'
+
+- name: Add _adblock user
+  ansible.builtin.user:
+    name: _adblock
+    shell: /sbin/nologin
+    home: /var/empty
+    system: yes
+    create_home: no
+    state: present
+  when: unbound_adblock
+
+- name: Create /var/unbound/db/adblock.rpz with proper permissions
+  ansible.builtin.file:
+    name: /var/unbound/db/adblock.rpz
+    owner: _adblock
+    group: wheel
+    mode: '0644'
+    state: touch
+    modification_time: preserve
+    access_time: preserve
+  when: unbound_adblock
+
+- name: Create log directory for unbound-adblock
+  ansible.builtin.file:
+    name: /var/log/unbound-adblock
+    owner: root
+    group: wheel
+    mode: '0755'
+    state: directory
+  when: unbound_adblock
+
+- name: Create log file
+  ansible.builtin.file:
+    name: /var/log/unbound-adblock/unbound-adblock.log
+    owner: _adblock
+    group: wheel
+    mode: '0640'
+    state: touch
+    modification_time: preserve
+    access_time: preserve
+  when: unbound_adblock
+
+- name: Create gzipped log file
+  ansible.builtin.file:
+    name: /var/log/unbound-adblock/unbound-adblock.log.0.gz
+    owner: _adblock
+    group: wheel
+    mode: '0640'
+    state: touch
+    modification_time: preserve
+    access_time: preserve
+  when: unbound_adblock
+
+- name: install unbound.conf
+  ansible.builtin.template:
+    src: unbound.conf.j2
+    dest: "{{ unbound_conf }}"
+    validate: "{{ unbound_checkconf_bin }} %s"
+  notify: reload unbound
+
+- name: Setup unbound-control keys
+  ansible.builtin.command: "unbound-control-setup"
+  args:
+    creates: "/var/unbound/etc/unbound_control.pem"
+
+- name: Install and configure unbound-adblock
+  block:
+    - name: Download unbound-adblock
+      ansible.builtin.get_url:
+        url: https://www.geoghegan.ca/pub/unbound-adblock/latest/unbound-adblock.sh
+        dest: /usr/local/bin/unbound-adblock
+        mode: '0755'
+        owner: root
+        group: bin
+      register: adblock_download
+
+    - name: Add doas rules for _adblock
+      ansible.builtin.include_role:
+        name: doas
+        tasks_from: rules
+      vars:
+        doas_rules_name: unbound adblock
+        doas_rules:
+          - action: permit
+            options: [nopass]
+            identity: _adblock
+            as: root
+            cmd: /usr/sbin/unbound-control
+            args: "-q status"
+
+          - action: permit
+            options: [nopass]
+            identity: _adblock
+            as: root
+            cmd: /usr/sbin/unbound-control
+            args: "-q flush_zone unbound-adblock"
+
+          - action: permit
+            options: [nopass]
+            identity: _adblock
+            as: root
+            cmd: /usr/sbin/unbound-control
+            args: "-q auth_zone_reload unbound-adblock"
+
+    - name: Install ripgrep and mawk for greatly improved performance
+      ansible.builtin.package: 
+        name: "{{ item }}"
+        state: present
+      loop: 
+        - ripgrep
+        - mawk
+
+    - name: Install whitelist
+      ansible.builtin.template:
+        src: whitelist.txt.j2
+        dest: "{{ unbound_whitelist_file }}"
+        mode: "0600"
+        owner: _adblock
+      notify: update unbound-adblock zone
+
+    - name: Update unbound-adblock zone
+      ansible.builtin.command: unbound-adblock -O openbsd -w {{ unbound_whitelist_file }}
+      args: 
+        creates: "/var/unbound/db/adblock.rpz"
+      become: yes
+      become_user: _adblock
+      become_method: doas
+      when: adblock_download.changed
+
+    - name: Add unbound-adblock crontab
+      ansible.builtin.cron:
+        name: "Update unbound-adblock zone"
+        user: _adblock
+        minute: '~'
+        hour: '0~1'
+        job: -s unbound-adblock -O openbsd -w {{ unbound_whitelist_file }}
+  when: unbound_adblock
+
+- name: Enable and start unbound
+  ansible.builtin.service:
+    name: unbound
+    enabled: yes
+    state: started
+  tags: unbound

@@ -1,0 +1,58 @@
+{{ ansible_managed | comment }}
+
+{% if unbound_adblock %}
+rpz:
+    name: "unbound-adblock"
+    zonefile: "/var/unbound/db/adblock.rpz"
+    rpz-log: yes
+    rpz-log-name: "unbound-adblock"
+{% endif %}
+
+remote-control:
+    control-enable: {{ unbound_remote_control_enable }}
+    control-use-cert: {{ unbound_remote_control_use_cert }}
+    control-interface: {{ unbound_remote_control_interface }}
+
+server:
+    chroot: /var/unbound
+    do-daemonize: yes
+{% for interface in unbound_interfaces %}
+    interface: {{ interface }}
+{% endfor %}
+    do-ip6: {{ unbound_do_ip6 }}
+{% for acl in unbound_access_control %}
+    access-control: {{ acl }}
+{% endfor %}
+    hide-identity: {{ unbound_hide_identity }}
+    hide-version: {{ unbound_hide_version }}
+{% if unbound_local_zone %}
+    local-zone: {{ unbound_local_zone }}
+{% endif %}
+
+    #tls-upstream: yes
+{% if ansible_os_family in ['OpenBSD', 'FreeBSD'] %}
+#   tls-cert-bundle: "/etc/ssl/cert.pem"
+{% elif ansible_os_family == 'Debian' %}
+#   tls-cert-bundle: "/etc/ssl/certs/ca-certificates.crt"
+{% endif %}
+
+    module-config: "respip validator iterator"
+
+    local-data: "{{ "%-28s" |format("localhost") }} A    127.0.0.1"
+    local-data: "{{ "%-28s" |format ("localhost.sjk.io") }} A    127.0.0.1"
+    local-data: "{{ "%-28s" |format("localhost") }} AAAA ::1"
+    local-data: "{{ "%-28s" |format("localhost.sjk.io") }} AAAA ::1"
+{% for host in groups['glamsarvet31'] %}
+    local-data: "{{ "%-28s" |format(hostvars[host]['inventory_hostname']) }} A    {{ hostvars[host]['my_ip'] }}"
+{% endfor %}
+{% for host in extra_hosts %}
+    local-data: "{{ "%-28s" |format(host['hostname']) }} A    {{ host['ip'] }}"
+{% endfor %}
+
+{% for host in groups['glamsarvet31'] %}
+    local-data-ptr: "{{ "%-14s" |format(hostvars[host]['my_ip']) }} {{ hostvars[host]['inventory_hostname'] }}"
+{% endfor %}
+{% for host in extra_hosts %}
+    local-data-ptr: "{{ "%-14s" |format(host['ip']) }} {{ host['hostname'] }}"
+{% endfor %}
+

@@ -1,0 +1,13 @@
+---
+- name: reload unbound
+  service:
+    name: unbound
+    state: reloaded
+
+- name: update unbound-adblock zone
+  ansible.builtin.command: unbound-adblock -O openbsd -w {{ unbound_whitelist_file }}
+  args:
+    creates: "/var/unbound/db/adblock.rpz"
+  become: yes
+  become_user: _adblock
+  become_method: doas
