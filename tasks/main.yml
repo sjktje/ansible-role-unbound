@@ -18,6 +18,48 @@
       a local socket, or certificate authentication for a network interface.
   when: unbound_adblock
 
+- name: Disable managed adblock activity
+  when: not unbound_adblock
+  block:
+    - name: Check whether the adblock account exists
+      ansible.builtin.getent:
+        database: passwd
+        key: _adblock
+        fail_key: false
+
+    - name: Remove unbound-adblock crontab entry
+      ansible.builtin.cron:
+        name: "Update unbound-adblock zone"
+        user: _adblock
+        state: absent
+      when: ansible_facts.getent_passwd['_adblock'] is not none
+
+    - name: Check for the doas configuration
+      ansible.builtin.stat:
+        path: "{{ doas_config_file | default('/etc/doas.conf') }}"
+        get_checksum: false
+      register: adblock_doas_config
+
+    - name: Read existing doas rulesets
+      ansible.builtin.slurp:
+        src: "{{ doas_config_file | default('/etc/doas.conf') }}"
+      register: adblock_doas_rules
+      no_log: true
+      when: adblock_doas_config.stat.exists
+
+    - name: Remove managed doas rules for _adblock
+      ansible.builtin.include_role:
+        name: sjktje.doas
+        tasks_from: rules
+      vars:
+        doas_rules_name: unbound adblock
+        doas_rules_state: absent
+      when:
+        - adblock_doas_config.stat.exists
+        - >-
+          '# BEGIN ANSIBLE MANAGED DOAS: unbound adblock' in
+          (adblock_doas_rules.content | b64decode).splitlines()
+
 - name: Add _adblock user
   ansible.builtin.user:
     name: _adblock

@@ -28,8 +28,9 @@ ansible-galaxy collection install -r requirements.yml
 The requirements file selects `sjktje.doas` 2.0.0, whose `rules` entry point
 manages the adblock privileges. This entry point does not run the main doas
 role. On OpenBSD, doas itself is already part of the base system. The role
-is only included when adblocking is enabled; resolver-only use does not
-require these dependencies unless the playbook itself uses doas escalation.
+is included when adblocking is enabled, or when removing its existing managed
+privileges after disabling it. Fresh resolver-only installations do not require
+these dependencies unless the playbook itself uses doas escalation.
 
 For local development, a symlink named `roles/sjktje.doas` in the consuming
 Ansible repository can point to your `ansible-role-doas` checkout instead of
@@ -78,6 +79,21 @@ a reload does not reliably apply remote-control changes. With adblocking
 enabled, handlers are flushed before generation. This also runs any pending
 handlers from earlier roles in the play. Routine blocklist updates use
 `unbound-control` without restarting the service.
+
+Disabling Adblocking
+-------------------
+
+Apply the role with `unbound_adblock: false` to remove its RPZ configuration,
+named cron job and `unbound adblock` doas ruleset. Keep `sjktje.doas` available
+for that run if the managed ruleset exists. The role checks for the ruleset
+before including the dependency, honouring `doas_config_file` when overridden.
+Other cron jobs and doas rules are left alone, including any old unmarked rules
+that must be reviewed and removed manually.
+
+The `_adblock` account, downloaded script, whitelist, RPZ file, logs and installed
+packages are retained. Remote-control settings are not automatically disabled.
+Removing the role from a playbook does not perform cleanup; apply the disabled
+state first. Cleanup does not terminate an update process that is already running.
 
 Example Playbook
 ----------------
