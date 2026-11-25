@@ -38,6 +38,11 @@ entry point. Keep a separate `roles/doas` symlink if other callers still use
 the short name. Ensure the consuming repository's `roles` directory is on
 Ansible's role search path.
 
+When adblocking is enabled, the role downloads unbound-adblock's stable 0.5
+release from `https://geoghegan.ca/pub/unbound-adblock/0.5/unbound-adblock.sh`
+and verifies a pinned SHA-256 checksum before installation. Script upgrades
+require an explicit update to the URL and checksum in the download task.
+
 Example Playbook
 ----------------
 

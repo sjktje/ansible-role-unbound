@@ -73,7 +73,8 @@
   block:
     - name: Download unbound-adblock
       ansible.builtin.get_url:
-        url: https://www.geoghegan.ca/pub/unbound-adblock/latest/unbound-adblock.sh
+        url: https://geoghegan.ca/pub/unbound-adblock/0.5/unbound-adblock.sh
+        checksum: sha256:106e2d94fccf543ae2103c8068cae700791ea02a46e46a2a190bf91d2594bcd8
         dest: /usr/local/bin/unbound-adblock
         mode: '0755'
         owner: root
