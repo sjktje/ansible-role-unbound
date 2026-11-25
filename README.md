@@ -43,6 +43,42 @@ release from `https://geoghegan.ca/pub/unbound-adblock/0.5/unbound-adblock.sh`
 and verifies a pinned SHA-256 checksum before installation. Script upgrades
 require an explicit update to the URL and checksum in the download task.
 
+Adblock Operation
+-----------------
+
+Adblocking requires working remote control. For example, enable control on
+loopback with certificate authentication:
+
+```yaml
+unbound_adblock: true
+unbound_remote_control_enable: "yes"
+unbound_remote_control_interface: 127.0.0.1
+unbound_remote_control_use_cert: "yes"
+```
+
+The role creates control keys before validating the configuration when TCP
+certificate authentication is enabled. Unauthenticated control is accepted
+only on loopback or a local Unix socket. Loopback without certificates allows
+other local users to control Unbound; prefer certificates or a suitably
+permissioned local socket on multi-user hosts.
+
+The role starts Unbound with an empty RPZ file on first installation, applies
+pending configuration changes, then generates the blocklist as `_adblock`.
+The upstream script requires Unbound and remote control to be running before
+generation. Until generation succeeds, an empty zone provides no blocking.
+The script also requires both log files to exist and be writable, including
+the rotated `.log.0.gz` path; it replaces that placeholder during rotation.
+
+Generation runs when the script or whitelist changes, or the zone is empty
+or missing. Otherwise, the daily cron job handles blocklist updates. Both
+execution paths use an explicit script path and command search path.
+
+Configuration changes restart Unbound, briefly interrupting DNS service;
+a reload does not reliably apply remote-control changes. With adblocking
+enabled, handlers are flushed before generation. This also runs any pending
+handlers from earlier roles in the play. Routine blocklist updates use
+`unbound-control` without restarting the service.
+
 Example Playbook
 ----------------
 

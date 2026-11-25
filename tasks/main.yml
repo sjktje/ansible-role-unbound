@@ -5,6 +5,19 @@
       - ansible_facts['distribution'] | default('') == 'OpenBSD'
     fail_msg: This role supports OpenBSD only and requires gathered distribution facts.
 
+- name: Check adblock remote-control settings
+  ansible.builtin.assert:
+    that:
+      - unbound_remote_control_enable | bool
+      - >-
+        unbound_remote_control_use_cert | bool or
+        unbound_remote_control_interface in ['127.0.0.1', '::1'] or
+        unbound_remote_control_interface.startswith('/')
+    fail_msg: >-
+      Adblocking requires remote control. Enable it and use a loopback address,
+      a local socket, or certificate authentication for a network interface.
+  when: unbound_adblock
+
 - name: Add _adblock user
   ansible.builtin.user:
     name: _adblock
@@ -24,6 +37,13 @@
     state: touch
     modification_time: preserve
     access_time: preserve
+  when: unbound_adblock
+
+- name: Check whether the adblock zone needs initial generation
+  ansible.builtin.stat:
+    path: /var/unbound/db/adblock.rpz
+    get_checksum: false
+  register: adblock_zone
   when: unbound_adblock
 
 - name: Create log directory for unbound-adblock
@@ -46,6 +66,7 @@
     access_time: preserve
   when: unbound_adblock
 
+# Upstream checks that both log paths are writable before rotating either file.
 - name: Create gzipped log file
   ansible.builtin.file:
     name: /var/log/unbound-adblock/unbound-adblock.log.0.gz
@@ -56,18 +77,6 @@
     modification_time: preserve
     access_time: preserve
   when: unbound_adblock
-
-- name: install unbound.conf
-  ansible.builtin.template:
-    src: unbound.conf.j2
-    dest: "{{ unbound_conf }}"
-    validate: "{{ unbound_checkconf_bin }} %s"
-  notify: reload unbound
-
-- name: Setup unbound-control keys
-  ansible.builtin.command: "unbound-control-setup"
-  args:
-    creates: "/var/unbound/etc/unbound_control.pem"
 
 - name: Install and configure unbound-adblock
   block:
@@ -123,25 +132,24 @@
         dest: "{{ unbound_whitelist_file }}"
         mode: "0600"
         owner: _adblock
-      notify: update unbound-adblock zone
-
-    - name: Update unbound-adblock zone
-      ansible.builtin.command: unbound-adblock -O openbsd -w {{ unbound_whitelist_file }}
-      args: 
-        creates: "/var/unbound/db/adblock.rpz"
-      become: yes
-      become_user: _adblock
-      become_method: community.general.doas
-      when: adblock_download.changed
-
-    - name: Add unbound-adblock crontab
-      ansible.builtin.cron:
-        name: "Update unbound-adblock zone"
-        user: _adblock
-        minute: '~'
-        hour: '0~1'
-        job: -s unbound-adblock -O openbsd -w {{ unbound_whitelist_file }}
+      register: adblock_whitelist
   when: unbound_adblock
+
+- name: Setup unbound-control keys
+  ansible.builtin.command: "unbound-control-setup"
+  args:
+    creates: "/var/unbound/etc/unbound_control.pem"
+  when:
+    - unbound_remote_control_enable | bool
+    - unbound_remote_control_use_cert | bool
+    - not unbound_remote_control_interface.startswith('/')
+
+- name: install unbound.conf
+  ansible.builtin.template:
+    src: unbound.conf.j2
+    dest: "{{ unbound_conf }}"
+    validate: "{{ unbound_checkconf_bin }} %s"
+  notify: restart unbound
 
 - name: Enable and start unbound
   ansible.builtin.service:
@@ -149,3 +157,37 @@
     enabled: yes
     state: started
   tags: unbound
+
+- name: Apply configuration changes before generating the adblock zone
+  ansible.builtin.meta: flush_handlers
+  when: unbound_adblock
+
+- name: Update unbound-adblock zone
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/unbound-adblock
+      - -O
+      - openbsd
+      - -w
+      - "{{ unbound_whitelist_file }}"
+  environment:
+    PATH: /usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/sbin
+  become: yes
+  become_user: _adblock
+  become_method: community.general.doas
+  when:
+    - unbound_adblock
+    - >-
+      adblock_download.changed or adblock_whitelist.changed or
+      adblock_zone.stat.size | default(0) == 0
+
+- name: Add unbound-adblock crontab
+  ansible.builtin.cron:
+    name: "Update unbound-adblock zone"
+    user: _adblock
+    minute: '~'
+    hour: '0~1'
+    job: >-
+      -s PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/sbin
+      /usr/local/bin/unbound-adblock -O openbsd -w {{ unbound_whitelist_file | quote }}
+  when: unbound_adblock
