@@ -10,4 +10,4 @@
     creates: "/var/unbound/db/adblock.rpz"
   become: yes
   become_user: _adblock
-  become_method: doas
+  become_method: community.general.doas

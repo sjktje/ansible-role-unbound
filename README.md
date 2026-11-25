@@ -16,7 +16,27 @@ A description of the settable variables for this role should go here, including 
 Dependencies
 ------------
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
+Optional adblocking (`unbound_adblock: true`) requires the `sjktje.doas` role
+and the `community.general` collection, which provides Ansible's doas become
+plugin. Install these on the control machine from this repository:
+
+```sh
+ansible-galaxy role install -r requirements.yml
+ansible-galaxy collection install -r requirements.yml
+```
+
+The requirements file selects `sjktje.doas` 2.0.0, whose `rules` entry point
+manages the adblock privileges. This entry point does not run the main doas
+role. On OpenBSD, doas itself is already part of the base system. The role
+is only included when adblocking is enabled; resolver-only use does not
+require these dependencies unless the playbook itself uses doas escalation.
+
+For local development, a symlink named `roles/sjktje.doas` in the consuming
+Ansible repository can point to your `ansible-role-doas` checkout instead of
+installing the Galaxy release. That checkout must provide the same `rules`
+entry point. Keep a separate `roles/doas` symlink if other callers still use
+the short name. Ensure the consuming repository's `roles` directory is on
+Ansible's role search path.
 
 Example Playbook
 ----------------

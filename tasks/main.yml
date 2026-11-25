@@ -82,7 +82,7 @@
 
     - name: Add doas rules for _adblock
       ansible.builtin.include_role:
-        name: doas
+        name: sjktje.doas
         tasks_from: rules
       vars:
         doas_rules_name: unbound adblock
@@ -130,7 +130,7 @@
         creates: "/var/unbound/db/adblock.rpz"
       become: yes
       become_user: _adblock
-      become_method: doas
+      become_method: community.general.doas
       when: adblock_download.changed
 
     - name: Add unbound-adblock crontab
