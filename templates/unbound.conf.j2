@@ -29,13 +29,6 @@ server:
     local-zone: {{ unbound_local_zone }}
 {% endif %}
 
-    #tls-upstream: yes
-{% if ansible_os_family in ['OpenBSD', 'FreeBSD'] %}
-#   tls-cert-bundle: "/etc/ssl/cert.pem"
-{% elif ansible_os_family == 'Debian' %}
-#   tls-cert-bundle: "/etc/ssl/certs/ca-certificates.crt"
-{% endif %}
-
     module-config: "respip validator iterator"
 
 {% for record in unbound_local_data %}

@@ -1,17 +1,9 @@
 ---
-- name: Set OS dependent variables
-  ansible.builtin.include_vars: "{{ item }}"
-  with_first_found:
-    - files:
-      - "{{ ansible_distribution }}.yml"
-      - "{{ ansible_os_family }}.yml"
-      skip: true
-
-- name: install unbound
-  ansible.builtin.package:
-    name: unbound
-    state: present
-  when: ansible_distribution != 'OpenBSD'
+- name: Check supported operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] | default('') == 'OpenBSD'
+    fail_msg: This role supports OpenBSD only and requires gathered distribution facts.
 
 - name: Add _adblock user
   ansible.builtin.user:
