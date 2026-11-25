@@ -38,21 +38,10 @@ server:
 
     module-config: "respip validator iterator"
 
-    local-data: "{{ "%-28s" |format("localhost") }} A    127.0.0.1"
-    local-data: "{{ "%-28s" |format ("localhost.sjk.io") }} A    127.0.0.1"
-    local-data: "{{ "%-28s" |format("localhost") }} AAAA ::1"
-    local-data: "{{ "%-28s" |format("localhost.sjk.io") }} AAAA ::1"
-{% for host in groups['glamsarvet31'] %}
-    local-data: "{{ "%-28s" |format(hostvars[host]['inventory_hostname']) }} A    {{ hostvars[host]['my_ip'] }}"
-{% endfor %}
-{% for host in extra_hosts %}
-    local-data: "{{ "%-28s" |format(host['hostname']) }} A    {{ host['ip'] }}"
+{% for record in unbound_local_data %}
+    local-data: "{{ record }}"
 {% endfor %}
 
-{% for host in groups['glamsarvet31'] %}
-    local-data-ptr: "{{ "%-14s" |format(hostvars[host]['my_ip']) }} {{ hostvars[host]['inventory_hostname'] }}"
+{% for record in unbound_local_data_ptr %}
+    local-data-ptr: "{{ record }}"
 {% endfor %}
-{% for host in extra_hosts %}
-    local-data-ptr: "{{ "%-14s" |format(host['ip']) }} {{ host['hostname'] }}"
-{% endfor %}
-

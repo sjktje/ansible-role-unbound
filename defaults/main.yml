@@ -2,17 +2,19 @@ unbound_checkconf_bin: /usr/sbin/unbound-checkconf
 unbound_conf: /var/unbound/etc/unbound.conf
 unbound_interfaces: []
 unbound_do_ip6: "no"
-unbound_access_control: 
+unbound_access_control:
   - 127.0.0.0/8 allow
-  - 172.16.0.0/16 allow
 unbound_hide_identity: "yes"
 unbound_hide_version: "yes"
-unbound_local_zone: '"sjk.io" transparent'
+unbound_local_zone: ""
+# Lists of Unbound record strings, for example: "host.example.org. IN A 192.0.2.10"
 unbound_local_data: []
+# Reverse record strings, for example: "192.0.2.10 host.example.org."
 unbound_local_data_ptr: []
 unbound_remote_control_enable: "no"
 unbound_remote_control_use_cert: "no"
 unbound_remote_control_interface: 127.0.0.1
+unbound_adblock: false
 unbound_whitelist_file: /var/unbound/db/whitelist.txt
 unbound_whitelist:
   - 'googleadservices.com'
